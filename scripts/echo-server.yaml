@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: echo-server
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: echo-server
@@ -15,4 +15,16 @@ spec:
       containers:
       - name: echo-server
         image: vgalaxy/echo-server
-        imagePullPolicy: Never
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo-server
+spec:
+  selector:
+    app: echo-server
+  type: NodePort
+  ports:
+    - port: 9000
+      targetPort: 9000
+      nodePort: 31000
