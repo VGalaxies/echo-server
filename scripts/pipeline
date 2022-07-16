@@ -1,0 +1,63 @@
+pipeline {
+    agent none
+    stages {
+        stage('Clone Code') {
+            agent {
+                label 'master'
+            }
+            steps {
+                echo "1. Git Clone Code Stage"
+                git url: "https://git.nju.edu.cn/V_Galaxy/echo-server.git"
+            }
+        }
+        stage('Maven Build') {
+            agent {
+                docker {
+                    image 'maven:latest'
+                    args '-v /root/.m2:/root/.m2'
+                }
+            }
+            steps {
+                echo "2. Maven Build Stage"
+                sh 'mvn -B clean package'
+            }
+        }
+        stage('Image Build') {
+            agent {
+                label 'master'
+            }
+            steps {
+                echo "3. Image Build Stage"
+                sh 'docker build -f Dockerfile -t echo-server:${BUILD_ID} .'
+                sh 'docker tag echo-server:${BUILD_ID} harbor.edu.cn/nju06/echo-server:${BUILD_ID}'
+            }
+        }
+        stage('Push') {
+            agent {
+                label 'master'
+            }
+            steps {
+                echo "4. Push Docker Image Stage"
+                sh "docker login --username=nju06 harbor.edu.cn -p nju062022"
+                sh "docker push harbor.edu.cn/nju06/echo-server:${BUILD_ID}"
+            }
+        }
+    }
+}
+
+node('slave') {
+    container('jnlp-kubectl') {
+        stage('Clone YAML') {
+            echo "5. Git Clone YAML To Slave Stage"
+            git url: "https://git.nju.edu.cn/V_Galaxy/echo-server.git"
+        }
+        stage('YAML') {
+            echo "6. Change YAML File Stage"
+            sh 'sed -i "s#{VERSION}#${BUILD_ID}#g" ./scripts/echo-server.yaml'
+        }
+        stage('Deploy') {
+            echo "7. Deploy To K8s Stage"
+            sh 'kubectl apply -f ./scripts/echo-server.yaml'
+        }
+    }
+}
